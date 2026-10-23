@@ -4,7 +4,8 @@ Native Mermaid rendering with the [Ondine](https://ondine.sh) compiler.
 
 Ondine compiles Mermaid diagrams to monochrome SVG with a pure Rust compiler. This project is a
 small, independent command-line front end for that compiler. It reads Mermaid files or standard
-input and writes SVG without Node.js, npm, or WebAssembly at runtime.
+input, writes SVG, and prints diagrams as ASCII text. It needs no Node.js, npm, or WebAssembly at
+runtime, and it makes no network requests.
 
 ## Advantages
 
@@ -15,7 +16,15 @@ input and writes SVG without Node.js, npm, or WebAssembly at runtime.
 - **Simple:** Install with Cargo, or run through the Nix flake.
 - **Build-friendly:** Fits CI jobs, Makefiles, and static-site pipelines.
 
-A single native render starts in a few milliseconds.
+## Performance
+
+Native startup is a few milliseconds. The table compares ASCII output against `ondine@0.0.3`:
+
+| Workload                       |     Rust |      npm | Ratio |
+|--------------------------------|---------:|---------:|------:|
+| 522 diagrams, per-type batches |  0.292 s |  9.041 s |   31x |
+| 522 diagrams, one process      |  0.136 s |  0.959 s |    7x |
+| Per diagram, one process       | 0.261 ms | 1.836 ms |    7x |
 
 ## Install
 
@@ -51,10 +60,14 @@ ondine diagrams/*.mmd --out-dir public/diagrams
 
 # Renders standard input to standard output
 cat flow.mmd | ondine > flow.svg
+
+# Prints flow.mmd as ASCII text instead of writing SVG
+ondine --ascii flow.mmd
 ```
 
 Options:
 
+- `-a, --ascii` prints diagrams as ASCII text instead of writing SVG files.
 - `-o, --out-dir <DIR>` writes every rendered file into one directory.
 - `-h, --help` prints usage.
 - `-V, --version` prints the version.
@@ -67,8 +80,8 @@ to standard error. The command renders the remaining files and exits with status
 
 ## Scope
 
-This release renders SVG only. It does not rewrite Markdown fences, print terminal images, produce
-ASCII output, or implement `--check`.
+This release renders SVG and ASCII. It does not rewrite Markdown fences, print terminal images,
+produce JSON, or implement `--check`.
 
 ## Compiler Revision
 
@@ -77,12 +90,9 @@ crates.io. Update the `rev` in `Cargo.toml` deliberately, then run `cargo test`.
 
 ## Credits
 
-This project exists because of [Ondine](https://github.com/wevm/ondine). Thank you to the Ondine
-maintainers and contributors, who wrote the compiler, parsers, layout engines, and SVG renderers.
-This CLI only provides a native command-line wrapper around their work.
+This project exists because of [Ondine](https://github.com/wevm/ondine).
 
-Ondine ports [Pele](https://github.com/obsidianmd/pele), which is also MIT licensed, at commit
-`458322a5b8abb1ae57ddf127c32017ab9fb14a92`.
+Ondine ports [Pele](https://github.com/obsidianmd/pele).
 
 This project is independent and unofficial. It is not maintained by or affiliated with the Ondine
 project.

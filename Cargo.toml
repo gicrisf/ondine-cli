@@ -13,6 +13,7 @@ path = "src/main.rs"
 [dependencies]
 clap = { version = "4", features = ["derive"] }
 ondine_compiler = { package = "compiler", git = "https://github.com/wevm/ondine", rev = "0b589ec34481856b4153526f10a0a35558a201a8" }
+unicode-width = "0.2"
 
 [dev-dependencies]
 tempfile = "3"

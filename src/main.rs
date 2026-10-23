@@ -1,7 +1,10 @@
 //! Native command-line renderer for Ondine Mermaid diagrams.
 //!
-//! The command reads Mermaid source from files or standard input and writes SVG to a file or
-//! standard output. The compiler crate owns preprocessing, parsing, layout, and SVG emission.
+//! The command reads Mermaid source from files or standard input. It writes SVG to a file or
+//! standard output, or prints ASCII text to standard output. The compiler crate owns preprocessing,
+//! parsing, layout, and SVG emission.
+
+mod ascii;
 
 use std::ffi::OsString;
 use std::fs;
@@ -12,12 +15,15 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use clap::Parser;
 
-/// Renders Mermaid source to SVG.
+/// Renders Mermaid source to SVG or ASCII.
 #[derive(Debug, Parser)]
 #[command(name = "ondine", version, about)]
 struct Cli {
     /// Mermaid source files. With none, reads standard input.
     files: Vec<PathBuf>,
+    /// Print diagrams as ASCII text instead of writing SVG files.
+    #[arg(short, long)]
+    ascii: bool,
     /// Directory for rendered files. Defaults to each source file's directory.
     #[arg(short, long, value_name = "DIR")]
     out_dir: Option<PathBuf>,
@@ -27,11 +33,12 @@ fn main() -> ExitCode {
     let cli = Cli::parse();
 
     if cli.files.is_empty() {
-        return render_stdin();
+        return render_stdin(cli.ascii);
     }
 
     let now = now_millis();
-    if let Some(directory) = &cli.out_dir
+    if !cli.ascii
+        && let Some(directory) = &cli.out_dir
         && let Err(error) = fs::create_dir_all(directory)
     {
         eprintln!("{}: {error}", directory.display());
@@ -40,7 +47,7 @@ fn main() -> ExitCode {
 
     let mut failed = false;
     for file in &cli.files {
-        if !render_file(file, cli.out_dir.as_deref(), now) {
+        if !render_file(file, cli.out_dir.as_deref(), now, cli.ascii) {
             failed = true;
         }
     }
@@ -53,7 +60,7 @@ fn main() -> ExitCode {
 }
 
 /// Renders standard input to standard output.
-fn render_stdin() -> ExitCode {
+fn render_stdin(ascii: bool) -> ExitCode {
     let mut source = String::new();
     if let Err(error) = io::stdin().read_to_string(&mut source) {
         eprintln!("<stdin>: {error}");
@@ -63,22 +70,17 @@ fn render_stdin() -> ExitCode {
     let Some(svg) = render(&source, "<stdin>", now_millis()) else {
         return ExitCode::FAILURE;
     };
+    let output = if ascii { ascii::from_svg(&svg) } else { svg };
 
-    let mut stdout = io::stdout();
-    match stdout
-        .write_all(svg.as_bytes())
-        .and_then(|()| stdout.flush())
-    {
-        Ok(()) => ExitCode::SUCCESS,
-        Err(error) => {
-            eprintln!("<stdout>: {error}");
-            ExitCode::FAILURE
-        }
+    if write_stdout(&output) {
+        ExitCode::SUCCESS
+    } else {
+        ExitCode::FAILURE
     }
 }
 
 /// Renders one file and writes the SVG beside it or into `out_dir`. Returns whether it succeeded.
-fn render_file(file: &Path, out_dir: Option<&Path>, now: f64) -> bool {
+fn render_file(file: &Path, out_dir: Option<&Path>, now: f64, ascii: bool) -> bool {
     let source = match fs::read_to_string(file) {
         Ok(source) => source,
         Err(error) => {
@@ -91,6 +93,10 @@ fn render_file(file: &Path, out_dir: Option<&Path>, now: f64) -> bool {
     let Some(svg) = render(&source, &name, now) else {
         return false;
     };
+
+    if ascii {
+        return write_stdout(&ascii::from_svg(&svg));
+    }
 
     let output = output_path(file, out_dir);
     if let Err(error) = fs::write(&output, svg) {
@@ -113,6 +119,21 @@ fn render(source: &str, name: &str, now: f64) -> Option<String> {
                 eprintln!("{name}: {}", error.message);
             }
             None
+        }
+    }
+}
+
+/// Writes `text` to standard output and returns whether it succeeded.
+fn write_stdout(text: &str) -> bool {
+    let mut stdout = io::stdout();
+    match stdout
+        .write_all(text.as_bytes())
+        .and_then(|()| stdout.flush())
+    {
+        Ok(()) => true,
+        Err(error) => {
+            eprintln!("<stdout>: {error}");
+            false
         }
     }
 }

@@ -36,6 +36,7 @@
             runHook preInstallCheck
             $out/bin/ondine --version
             printf 'flowchart LR\n  A --> B\n' | $out/bin/ondine | grep -q '<svg'
+            printf 'flowchart LR\n  A --> B\n' | $out/bin/ondine --ascii | grep -q '+----+'
             runHook postInstallCheck
           '';
 
